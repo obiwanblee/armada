@@ -18,7 +18,7 @@ jobs:
       - name: Build wvkbd
         run: |
           git clone --depth 1 https://github.com/jjsullivan5196/wvkbd.git
-          make -C wvkbd wvkbd-mobintl wvkbd-mobintl-big   # binaries only, skip man page (needs scdoc)
+          make -C wvkbd wvkbd-mobintl   # binary only, skip man page (needs scdoc)
           ls -l wvkbd/wvkbd-*
           echo "=== runtime libs needed ==="
           ldd wvkbd/wvkbd-mobintl || true
