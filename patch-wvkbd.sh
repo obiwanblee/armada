@@ -44,6 +44,8 @@ static void wvkbd_uinput_key(uint32_t code, int state) {
 /* --- end shim --- */
 SHIM
 sed -i '/#include KEYMAP/r /tmp/wvkbd-uinput-shim.h' keyboard.c
+# keyboard.c also guards kbd_init on a non-NULL vkbd -> skip it (uinput mode)
+sed -i 's/if (kb->vkbd == NULL) {/if (0) {/' keyboard.c
 
 # main.c: don't require the (absent) virtual-keyboard manager
 sed -i 's/if (vkbd_mgr == NULL) {/if (0) { \/* uinput mode: manager not needed *\//' main.c
