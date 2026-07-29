@@ -15,18 +15,22 @@ jobs:
             wayland-devel wayland-protocols-devel libxkbcommon-devel \
             cairo-devel pango-devel tar gzip findutils
 
-      - name: Build wvkbd
+      - name: Checkout (for patch script)
+        uses: actions/checkout@v4
+
+      - name: Build patched wvkbd
         run: |
           git clone --depth 1 https://github.com/jjsullivan5196/wvkbd.git
-          make -C wvkbd wvkbd-mobintl   # binary only, skip man page (needs scdoc)
+          bash patch-wvkbd.sh        # inject uinput injection (KWin lacks wlr virtual-keyboard)
+          make -C wvkbd wvkbd-mobintl # binary only, skip man page (needs scdoc)
           ls -l wvkbd/wvkbd-*
-          echo "=== runtime libs needed ==="
-          ldd wvkbd/wvkbd-mobintl || true
+          echo "=== uinput symbol present in binary? ==="
+          strings wvkbd/wvkbd-mobintl | grep -i uinput || true
 
       - name: Package binary
         run: |
           mkdir -p out
-          cp wvkbd/wvkbd-* out/ 2>/dev/null || cp wvkbd/wvkbd-mobintl out/
+          cp wvkbd/wvkbd-mobintl out/
           ls -l out/
           tar czf wvkbd-arm64.tar.gz -C out .
 
