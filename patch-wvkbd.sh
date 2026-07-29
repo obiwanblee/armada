@@ -97,7 +97,6 @@ s = s.replace('        } else if (!strcmp(argv[i], "-H")) {',
 
 assert s.count('    struct wl_output *current_output_data = NULL;') == 1
 s = s.replace('    struct wl_output *current_output_data = NULL;',
-              '    wl_display_roundtrip(display);\n'
               '    struct wl_output *current_output_data = kbd_selected_output;', 1)
 
 open('main.c', 'w').write(s)
