@@ -29,7 +29,6 @@ __attribute__((constructor)) static void wvkbd_uinput_init(void) {
   uud.id.product = 0xb07f; uud.id.version = 1;
   if (write(wvkbd_uifd, &uud, sizeof(uud)) < 0) perror("wvkbd: uinput setup");
   ioctl(wvkbd_uifd, UI_DEV_CREATE);
-  usleep(200000);
 }
 static void wvkbd_uinput_key(uint32_t code, int state) {
   if (wvkbd_uifd < 0) return;
