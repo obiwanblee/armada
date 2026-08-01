@@ -17,6 +17,18 @@ if "LogManager.h" not in s:
     assert m, "no #include found to anchor LogManager include"
     s = s[:m.end()] + "#include <FEXCore/Utils/LogManager.h>\n" + s[m.end():]
 
+# 0) DIAGNOSTIC: unconditionally log every SetupFrame_x64 signal delivery + fault data.
+#    (Determines whether the guard-page #PF even reaches guest signal delivery.)
+entry_anchor = "*guest_siginfo = *HostSigInfo;"
+assert s.count(entry_anchor) >= 1, "entry anchor not found"
+entry_log = entry_anchor + """
+  LogMan::Msg::EFmt("[thor-d2r] SetupFrame sig={} faultToTop={} trapno={} err={:#x} rip={:#x}",
+                    Signal, (int)ContextBackup->FaultToTopAndGeneratedException,
+                    (int)Frame->SynchronousFaultData.TrapNo,
+                    (unsigned)Frame->SynchronousFaultData.err_code,
+                    (uint64_t)ContextBackup->OriginalRIP);"""
+s = s.replace(entry_anchor, entry_log, 1)
+
 # 1) After si_addr = OriginalRIP, override with the real fetch-fault address for instruction #PF.
 anchor = "guest_siginfo->si_addr = reinterpret_cast<void*>(ContextBackup->OriginalRIP);"
 assert s.count(anchor) >= 1, "si_addr anchor not found"
