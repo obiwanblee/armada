@@ -12,6 +12,14 @@ jobs:
         shell: pwsh
         run: git clone --recurse-submodules -b partyvan https://github.com/psfree/eos_sdk_emu.git emu
 
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\vcpkg\installed
+            C:\vcpkg\packages
+          key: vcpkg-static-protobuf-json-fifomap-zstd-v1
+
       - name: vcpkg deps (static)
         shell: pwsh
         run: |
@@ -25,6 +33,7 @@ jobs:
           cmake -B build -A x64 `
             -DX64=ON `
             -DUSE_ZSTD_COMPRESS=OFF `
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 `
             "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static
           cmake --build build --config Release
