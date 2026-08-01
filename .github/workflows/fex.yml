@@ -1,0 +1,57 @@
+name: Build patched FEX
+on:
+  push:
+    branches: [fex-ci]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout (patch script)
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git cmake ninja-build clang lld llvm pkg-config \
+            python3 python3-setuptools nasm libstdc++-14-dev
+
+      - name: Clone FEX @ device version (2607)
+        run: |
+          # Match the device's fex-emu-2607 so thunks/RootFS stay ABI-compatible.
+          git clone --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex
+          cd fex
+          git checkout FEX-2607 || echo "tag FEX-2607 not found, building default branch"
+          git submodule update --init --recursive
+
+      - name: Apply CR2/si_addr fault-address patch
+        run: cd fex && python3 ../patch-fex-cr2.py
+
+      - name: Build FEXInterpreter (Release, arm64 native)
+        run: |
+          cd fex && mkdir build && cd build
+          CC=clang CXX=clang++ cmake -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_LTO=False \
+            -DBUILD_TESTS=False \
+            -DENABLE_ASSERTIONS=False \
+            ..
+          ninja FEXInterpreter FEXLoader
+          echo "=== built binaries ==="
+          find . -name "FEXInterpreter" -o -name "FEXLoader" | xargs ls -la
+
+      - name: Package
+        run: |
+          mkdir -p out
+          find fex/build -name FEXInterpreter -exec cp {} out/ \;
+          find fex/build -name FEXLoader -exec cp {} out/ \;
+          ls -la out/
+          file out/* || true
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: fex-patched-arm64
+          path: out/
+          retention-days: 5
