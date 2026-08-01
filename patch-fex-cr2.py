@@ -11,6 +11,12 @@ import pathlib, sys, re
 f = pathlib.Path("Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp")
 s = f.read_text()
 
+# Ensure LogManager is available for the diagnostic EFmt below (robust insert).
+if "LogManager.h" not in s:
+    m = re.search(r'^#include .*\n', s, re.M)
+    assert m, "no #include found to anchor LogManager include"
+    s = s[:m.end()] + "#include <FEXCore/Utils/LogManager.h>\n" + s[m.end():]
+
 # 1) After si_addr = OriginalRIP, override with the real fetch-fault address for instruction #PF.
 anchor = "guest_siginfo->si_addr = reinterpret_cast<void*>(ContextBackup->OriginalRIP);"
 assert s.count(anchor) >= 1, "si_addr anchor not found"
@@ -23,6 +29,8 @@ inject = anchor + """
       const uint64_t PageSize = FEXCore::Utils::FEX_PAGE_SIZE;
       const uint64_t FetchFaultAddr = (ContextBackup->OriginalRIP + PageSize) & ~(PageSize - 1);
       guest_siginfo->si_addr = reinterpret_cast<void*>(FetchFaultAddr);
+      LogMan::Msg::EFmt("[thor-d2r] deliver PF_INSTR: RIP={:#x} faultaddr={:#x}",
+                        (uint64_t)ContextBackup->OriginalRIP, FetchFaultAddr);
     }"""
 s = s.replace(anchor, inject, 1)
 
