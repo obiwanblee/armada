@@ -1,0 +1,45 @@
+name: Build EOS emu
+on:
+  push:
+    branches: [eos-ci]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Clone emu (+ gitlab submodules)
+        shell: pwsh
+        run: git clone --recurse-submodules -b partyvan https://github.com/psfree/eos_sdk_emu.git emu
+
+      - name: vcpkg deps (static)
+        shell: pwsh
+        run: |
+          $tri = "x64-windows-static"
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install "protobuf:$tri" "nlohmann-json:$tri" "nlohmann-fifo-map:$tri" "zstd:$tri"
+
+      - name: Configure + build (X64 Release)
+        shell: pwsh
+        run: |
+          cd emu
+          cmake -B build -A x64 `
+            -DX64=ON `
+            -DUSE_ZSTD_COMPRESS=OFF `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static
+          cmake --build build --config Release
+
+      - name: Locate DLL
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Recurse -Filter "EOSSDK-Win64-Shipping.dll" emu | Select-Object -First 1
+          if (-not $dll) { Write-Error "DLL not built"; exit 1 }
+          Write-Host "built: $($dll.FullName) ($($dll.Length) bytes)"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item $dll.FullName out\
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eos-emu-dll
+          path: out/EOSSDK-Win64-Shipping.dll
+          retention-days: 5
