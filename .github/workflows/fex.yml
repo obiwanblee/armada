@@ -39,15 +39,14 @@ jobs:
             -DBUILD_TESTS=False \
             -DENABLE_ASSERTIONS=False \
             ..
-          ninja FEXInterpreter FEXLoader
-          echo "=== built binaries ==="
-          find . -name "FEXInterpreter" -o -name "FEXLoader" | xargs ls -la
+          ninja FEX
+          echo "=== built binary (target 'FEX' = the interpreter/loader) ==="
+          find . -name FEX -type f -executable | xargs ls -la
 
       - name: Package
         run: |
           mkdir -p out
-          find fex/build -name FEXInterpreter -exec cp {} out/ \;
-          find fex/build -name FEXLoader -exec cp {} out/ \;
+          find fex/build -name FEX -type f -executable -exec cp {} out/FEX \;
           ls -la out/
           file out/* || true
 
