@@ -28,7 +28,7 @@ dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False /packages/ar
 dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False /packages/jupiter-hw-support/*.rpm
 
 # Avoid gamescope-session-ogui-steam/-powerstation; Terra's aarch64 deps are broken.
-dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False --enable-repo=terra \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False --enable-repo=terra --setopt=terra.metalink= --setopt=terra.baseurl=https://repos.fyralabs.com/terra44 \
     steam-notif-daemon
 
 # Armada's package carries the rotation, startup timeout, and HDR capability
@@ -88,7 +88,7 @@ EOF
 
 # Bypass Terra's i686-only steam dependency; armada launches native ARM Steam.
 mkdir -p /tmp/gss-rpm
-dnf5 download --enable-repo=terra --destdir=/tmp/gss-rpm gamescope-session-steam
+dnf5 download --enable-repo=terra --setopt=terra.metalink= --setopt=terra.baseurl=https://repos.fyralabs.com/terra44 --destdir=/tmp/gss-rpm gamescope-session-steam
 rpm -ivh --nodeps /tmp/gss-rpm/gamescope-session-steam-*.rpm
 rm -rf /tmp/gss-rpm
 
