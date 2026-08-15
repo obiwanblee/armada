@@ -6,8 +6,12 @@ import json
 import os
 import pathlib
 import shutil
+import socket
 import sys
 import time
+
+sys.path.insert(0, "/usr/lib/armada")
+import armada_perf
 
 
 BASE_FEX_CONFIG = pathlib.Path("/usr/share/fex-emu/Config.json")
@@ -52,16 +56,6 @@ def load_tweaks(defaults):
     return data
 
 
-def merged_settings(tweaks, game_id):
-    settings = dict(tweaks.get("global", {}))
-    if game_id:
-        game_settings = tweaks.get("games", {}).get(str(game_id))
-        # Legacy configs may carry enabled: false; skip those, apply the rest.
-        if isinstance(game_settings, dict) and game_settings.get("enabled") is not False:
-            settings.update(game_settings)
-    return settings
-
-
 def thunk_settings(settings, modules):
     thunks = settings.get("thunks")
     if not isinstance(thunks, dict):
@@ -69,11 +63,14 @@ def thunk_settings(settings, modules):
     return {name: 1 if thunks.get(name, True) else 0 for name in modules}
 
 
-def runtime_config_dir():
-    runtime = os.environ.get("XDG_RUNTIME_DIR")
-    if runtime:
-        return pathlib.Path(runtime) / "armada-fex"
-    return pathlib.Path("/tmp") / f"armada-fex-{os.getuid()}"
+def fex_config_dir():
+    # pressure-vessel shares this cache path into the container; a runtime-dir
+    # config is invisible there and FEX silently skips an unseen FEX_APP_CONFIG.
+    # Relative XDG_CACHE_HOME (invalid per XDG) would be re-anchored by portable FEX.
+    cache = os.environ.get("XDG_CACHE_HOME")
+    if cache and pathlib.Path(cache).is_absolute():
+        return pathlib.Path(cache) / "armada-fex"
+    return pathlib.Path.home() / ".cache" / "armada-fex"
 
 
 def resolve_fex_config(settings, profiles):
@@ -89,12 +86,18 @@ def resolve_fex_config(settings, profiles):
 def apply_fex(settings, game_id, profiles, env):
     with BASE_FEX_CONFIG.open(encoding="utf-8") as f:
         config = json.load(f)
+
+    # each FEX resolves rootfs/thunk paths from its own global or template config;
+    # forcing Armada's onto the Steam FEX depot (Proton 11) empties its SLR4 rootfs
+    for key in ("RootFS", "ThunkGuestLibs", "ThunkHostLibs"):
+        config.get("Config", {}).pop(key, None)
+
     allowed = set().union(*(profile["config"].keys() for profile in profiles.values()))
     fex_config = resolve_fex_config(settings, profiles)
     config.setdefault("Config", {}).update({k: v for k, v in fex_config.items() if k in allowed})
     config["ThunksDB"] = thunk_settings(settings, config.get("ThunksDB", {}).keys())
 
-    config_dir = runtime_config_dir()
+    config_dir = fex_config_dir()
     config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     cutoff = time.time() - 86400
     for old in config_dir.glob("*.json"):
@@ -138,6 +141,50 @@ def inject_x86_protocol_libs():
                 os.symlink(os.readlink(src), dest)
             else:
                 shutil.copy2(src, dest)
+
+
+def apply_perf(settings, game_id):
+    # env applies last and verbatim so it can override anything the wrapper
+    # set, including FEX_APP_CONFIG and the derived WINE_CPU_TOPOLOGY
+    clean = armada_perf.sanitize_perf(settings)
+
+    env_extra = settings.get("env")
+    if isinstance(env_extra, dict):
+        for key, value in env_extra.items():
+            if value is None:
+                continue
+            try:
+                os.environ[str(key)] = str(value)
+            except (ValueError, OSError) as exc:
+                # a malformed name must not abort the rest of the launch path
+                print(f"armada-game-launch: bad env entry {key!r}: {exc}", file=sys.stderr)
+
+    cores = clean.get("cores")
+    # affinity is always set explicitly (fork inheritance has no reset guard,
+    # a restrictive gamescope mask would leak in); under cosmos the scheduler
+    # domain replaces the hard mask
+    if cores and clean.get("scheduler") != "cosmos":
+        os.sched_setaffinity(0, cores)
+    else:
+        os.sched_setaffinity(0, armada_perf.online_cpus())
+    if cores and clean.get("wineTopology", True) and "WINE_CPU_TOPOLOGY" not in os.environ:
+        os.environ["WINE_CPU_TOPOLOGY"] = f"{len(cores)}:{','.join(map(str, cores))}"
+
+    nice = clean.get("nice", 0)
+    if nice > 0:
+        os.setpriority(os.PRIO_PROCESS, 0, nice)
+
+    # the daemon applies negative nice, gamescope overrides and the
+    # scheduler; exec preserves the pid so SO_PEERCRED IS the game
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(3)
+            sock.connect(armada_perf.SESSION_SOCKET)
+            request = {"action": "game_launched", "appid": game_id or ""}
+            sock.sendall((json.dumps(request) + "\n").encode("utf-8"))
+            sock.recv(4096)
+    except OSError as exc:
+        print(f"armada-game-launch: session daemon unavailable: {exc}", file=sys.stderr)
 
 
 def repair_wedged_controller():
@@ -184,12 +231,18 @@ def main():
     os.environ.setdefault("DXVK_HUD", "none")
 
     game_id = appid()
+    settings = {}
     try:
         contract = load_fex_contract()
-        settings = merged_settings(load_tweaks(contract["defaults"]), game_id)
+        settings = armada_perf.merged_settings(load_tweaks(contract["defaults"]), game_id)
         apply_fex(settings, game_id, contract["profiles"], os.environ)
     except Exception as exc:
         print(f"armada-game-launch: failed to apply settings: {exc}", file=sys.stderr)
+
+    try:
+        apply_perf(settings, game_id)
+    except Exception as exc:
+        print(f"armada-game-launch: perf settings skipped: {exc}", file=sys.stderr)
 
     try:
         inject_x86_protocol_libs()

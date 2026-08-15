@@ -8,7 +8,7 @@ dnf5 -y install --setopt=install_weak_deps=False /packages/mesa/mesa-*.fc44.arma
 dnf5 -y install --setopt=install_weak_deps=False /packages/mangohud/mangohud-*.fc44.armada.*.rpm
 
 dnf5 -y install --setopt=install_weak_deps=False \
-    gamescope \
+    /packages/gamescope/terra-gamescope{,-libs}-[0-9]*.aarch64.rpm \
     vulkan-loader \
     vulkan-tools \
     gamemode \
@@ -17,14 +17,13 @@ dnf5 -y install --setopt=install_weak_deps=False \
     xorg-x11-server-Xwayland \
     xorg-x11-server-Xvfb
 
-# armada-gamescope carries ROCKNIX's --use-rotation-shader patch.
-dnf5 -y install --setopt=install_weak_deps=False /packages/gamescope/gamescope-[0-9]*.aarch64.rpm
-
 # Patched InputPlumber: dpad signed-axis fix
 dnf5 -y install --setopt=install_weak_deps=False /packages/inputplumber/inputplumber-*.rpm
 
 # Patched NetworkManager: /etc/NetworkManager/ignore-sleep keeps wifi up across fake-suspend.
 dnf5 -y install --setopt=install_weak_deps=False /packages/networkmanager/*.rpm
+
+dnf5 -y install --setopt=install_weak_deps=False /packages/armada-splash/*.rpm
 
 dnf5 -y install --setopt=install_weak_deps=False /packages/jupiter-hw-support/*.rpm
 
@@ -49,16 +48,25 @@ dnf5 -y install --setopt=install_weak_deps=False /packages/fex/fex-emu-*.rpm
 
 # Use Arch rootfs for better compatibility with Linux games targeting SteamOS
 mkdir -p /usr/share/fex-emu/RootFS
-ARCH_ROOTFS_URL="https://rootfs.fex-emu.gg/ArchLinux/2026-01-08/ArchLinux.sqsh"
-ARCH_ROOTFS_SHA256="cb059973b7953ad9165845529655189b96f9a174b14a6a149c87ec884b0c5e90"
+ARCH_ROOTFS_URL="https://rootfs.fex-emu.gg/ArchLinux/2026-08-11/ArchLinux.sqsh"
+ARCH_ROOTFS_SHA256="5d0c1a38590c68e5c2597c2c8a26d2f80170b1b738c857d63e1cdadada5f5f2a"
 curl --retry 3 --retry-delay 2 -fsSL -o /usr/share/fex-emu/RootFS/ArchLinux.sqsh "${ARCH_ROOTFS_URL}"
 echo "${ARCH_ROOTFS_SHA256}  /usr/share/fex-emu/RootFS/ArchLinux.sqsh" | sha256sum -c -
+# Steam's FEX compat tool needs the manifest the rootfs ships; a bump to a
+# rootfs without one would otherwise fail only at x86 game launch.
+unsquashfs -cat /usr/share/fex-emu/RootFS/ArchLinux.sqsh graphics_provider.json | python3 -m json.tool >/dev/null
+
+# Mountpoint for the rootfs at the path Steam's FEX compat tool hardcodes
+# for the x86 Proton chain; armada-guestos.service fills it at boot.
+mkdir -p /usr/share/guestos/fex-mesa
 
 # /usr/share config stays user-overridable; ~/.fex-emu would mask it.
+# RootFS is the armada-guestos mount so every x86 consumer shares one tree
+# (and the mesa payload); FEXServer skips its own per-user sqsh mount.
 cat > /usr/share/fex-emu/Config.json <<'EOF'
 {
   "Config": {
-    "RootFS": "ArchLinux.sqsh",
+    "RootFS": "/usr/share/guestos/fex-mesa",
     "TSOEnabled": "1",
     "X87ReducedPrecision": "1",
     "Multiblock": "0",
@@ -71,7 +79,6 @@ cat > /usr/share/fex-emu/Config.json <<'EOF'
   "ThunksDB": {
     "Vulkan": 1,
     "GL": 1,
-    "EGL": 1,
     "drm": 1,
     "WaylandClient": 1,
     "asound": 1
@@ -117,6 +124,8 @@ rm -rf "${PROTON_DIR:?}/${PROTON_TOOL_NAME}"
 mv "${PROTON_DIR}/${PROTON_ARCHIVE_NAME}" "${PROTON_DIR}/${PROTON_TOOL_NAME}"
 # Missing runtime app makes Steam fall back to Proton 10.
 sed -i '/require_tool_appid/d' "${PROTON_DIR}/${PROTON_TOOL_NAME}/toolmanifest.vdf"
+python3 /ctx/build_files/patch-proton-cachyos-dxvk-probe.py \
+    "${PROTON_DIR}/${PROTON_TOOL_NAME}/proton"
 python3 /ctx/build_files/set-steam-default-compat.py "${STEAM_HOME}" "${PROTON_TOOL_NAME}" "${PROTON_DIR}"
 rm -f "/tmp/${PROTON_TAR}" "/tmp/${PROTON_ARCHIVE_NAME}.sha512sum"
 
