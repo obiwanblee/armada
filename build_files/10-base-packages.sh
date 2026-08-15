@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euxo pipefail
 
-dnf5 -y install --nogpgcheck \
+dnf5 -y install --skip-unavailable --nogpgcheck \
     --repofrompath 'terra,https://repos.fyralabs.com/terra$releasever' \
     terra-release
 
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     sddm \
     pipewire \
     pipewire-alsa \
@@ -58,7 +58,7 @@ dnf5 -y install --setopt=install_weak_deps=False \
     wlr-randr \
     distrobox
 
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     /packages/umtp-responder/umtp-responder-*.rpm
 
 # CachyOS Proton's ARM64 GStreamer asks for Arch's libbz2 soname.
@@ -68,9 +68,9 @@ ln -sf libbz2.so.1 /usr/lib64/libbz2.so.1.0
 ln -sf libz.so.1 /usr/lib64/libz.so
 
 # pressure-vessel needs en_US.UTF-8; the base image ships only minimal-langpack (C.utf8).
-dnf5 -y install --setopt=install_weak_deps=False glibc-langpack-en
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False glibc-langpack-en
 
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     google-noto-sans-vf-fonts \
     google-noto-sans-cjk-vf-fonts \
     google-noto-sans-thai-vf-fonts \
@@ -79,7 +79,7 @@ dnf5 -y install --setopt=install_weak_deps=False \
     google-noto-sans-devanagari-vf-fonts \
     google-noto-color-emoji-fonts
 
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     plasma-workspace \
     plasma-desktop \
     plasma-mobile \
@@ -102,22 +102,22 @@ dnf5 -y install --setopt=install_weak_deps=False \
     kwrite
 
 # Patched KWin lets devices pin Plasma's virtual keyboard to a configured output.
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     /packages/kwin/kwin-[0-9]*.rpm \
     /packages/kwin/kwin-common-[0-9]*.rpm \
     /packages/kwin/kwin-libs-[0-9]*.rpm
 
 # PowerDevil's KWin backend treats 0 as safe; reserve 5% for internal panels.
-dnf5 -y install --setopt=install_weak_deps=False /packages/powerdevil/powerdevil-*.fc44.armada.*.rpm
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False /packages/powerdevil/powerdevil-*.fc44.armada.*.rpm
 
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     heroic-games-launcher
 
 # scx_cosmos/scx_lavd for the Armada Control scheduler setting; without the
 # binaries armada-powerd reports the scheduler choice as unavailable.
-dnf5 -y install --setopt=install_weak_deps=False --skip-unavailable scx-scheds
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False --skip-unavailable scx-scheds
 
-dnf5 -y install --setopt=install_weak_deps=False \
+dnf5 -y install --skip-unavailable --setopt=install_weak_deps=False \
     --repofrompath 'copr-ublue-os-packages,https://download.copr.fedorainfracloud.org/results/ublue-os/packages/fedora-$releasever-$basearch/' \
     --setopt=copr-ublue-os-packages.gpgcheck=0 \
     --setopt=copr-ublue-os-packages.repo_gpgcheck=0 \
