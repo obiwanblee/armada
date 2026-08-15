@@ -234,7 +234,7 @@ jobs:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
 
       - name: Publish channel tags
-        if: github.event_name != 'pull_request' && env.HAVE_SIGNING_SECRET == 'true'
+        if: github.event_name != 'pull_request' && env.HAVE_SIGNING_SECRET == 'true' && vars.PUBLISH == 'true'
         run: |
           set -euo pipefail
           IMAGE_FULL="${IMAGE_REGISTRY}/${IMAGE_NAME}"
