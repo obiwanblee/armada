@@ -9,7 +9,8 @@ kargs = [
 
     "allow_mismatched_32bit_el0",
     "fw_devlink.strict=1",
-    "pcie_ports=compat",
+    "fw_devlink.sync_state=timeout",
+    "pcie_port_pm=force",
 
     "psi=1",
     "cgroup_disable=pressure",
