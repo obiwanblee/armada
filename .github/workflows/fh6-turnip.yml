@@ -7,6 +7,12 @@ name: FH6 Turnip variant
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fh6-sparse2
+    paths:
+      - packages/mesa/**
+      - .github/workflows/fh6-turnip.yml
 
 permissions:
   contents: read
