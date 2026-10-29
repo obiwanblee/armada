@@ -50,7 +50,7 @@ jobs:
       - name: Upload driver
         uses: actions/upload-artifact@v4
         with:
-          name: turnip-fh6-heap1
+          name: turnip-fh6-heap2
           path: |
             packages/mesa/fh6-heap/out/
             build.log

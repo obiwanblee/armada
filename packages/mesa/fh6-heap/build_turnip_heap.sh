@@ -27,7 +27,7 @@ CXXFLAGS='-O2 -march=armv8.2-a+fp16+dotprod+i8mm -mtune=cortex-a78' \
 meson setup src/build src --buildtype release --prefix /usr \
   -Dgallium-drivers= -Dvulkan-drivers=freedreno -Dfreedreno-kmds=msm \
   -Dplatforms=x11,wayland -Dglx=disabled -Degl=disabled -Dgbm=disabled \
-  -Dopengl=false -Dllvm=disabled -Dbuild-tests=true -Dtu-build-id=fh6-a740-heap1
+  -Dopengl=false -Dllvm=disabled -Dbuild-tests=true -Dtu-build-id=fh6-a740-heap2
 ninja -C src/build -j"$(nproc)"
 meson test -C src/build --print-errorlogs fd6_layout
 install -D -m 0755 src/build/src/freedreno/vulkan/libvulkan_freedreno.so /work/out/libvulkan_freedreno.so
