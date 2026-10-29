@@ -1,0 +1,57 @@
+---
+name: FH6 heap-usage Turnip
+
+# Builds packages/mesa/fh6-heap (Astra's fh6-sparse1 recipe + process-wide heap
+# usage patch) in the pinned Fedora builder on the native arm64 runner and
+# uploads libvulkan_freedreno.so. No registry writes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fh6-heap1
+    paths:
+      - packages/mesa/fh6-heap/**
+      - .github/workflows/fh6-heap.yml
+
+permissions:
+  contents: read
+
+jobs:
+  turnip:
+    name: turnip fh6-heap
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install container tools
+        run: |
+          set -euxo pipefail
+          command -v podman >/dev/null || { sudo apt-get update && sudo apt-get install -y podman; }
+
+      - name: Resolve builder image
+        run: |
+          set -euo pipefail
+          source packages/toolchain.env
+          echo "BUILDER_IMAGE=${BUILDER_IMAGE}" >> "${GITHUB_ENV}"
+
+      - name: Build turnip
+        run: |
+          set -euxo pipefail
+          chmod -R a+rwX packages/mesa/fh6-heap
+          podman run --rm -v "${PWD}/packages/mesa/fh6-heap:/work" "${BUILDER_IMAGE}" \
+            bash /work/build_turnip_heap.sh 2>&1 | tee build.log | grep -vE '^\[[0-9]+/[0-9]+\] ' || true
+          grep -q BUILD_OK build.log
+          ls -la packages/mesa/fh6-heap/out
+          sha256sum packages/mesa/fh6-heap/out/libvulkan_freedreno.so
+
+      - name: Upload driver
+        uses: actions/upload-artifact@v4
+        with:
+          name: turnip-fh6-heap1
+          path: |
+            packages/mesa/fh6-heap/out/
+            build.log
+          if-no-files-found: error

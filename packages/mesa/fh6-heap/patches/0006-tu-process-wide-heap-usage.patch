@@ -1,0 +1,49 @@
+From: Armada FH6 diag <fh6@local>
+Subject: [PATCH] tu: report process-wide heap usage in VK_EXT_memory_budget
+
+Ported from DroidDeck Drivers patches/scripts/process_heap_usage.py onto Mesa 26.2.4.
+heapUsage[0] becomes a process-wide counter of every tu_bo added to the heap, so a
+second VkInstance in the same process (DXVK DXGI answering a D3D12 game) sees the
+allocations made through vkd3d-proton instead of zero.
+
+--- a/src/freedreno/vulkan/tu_device.cc
++++ b/src/freedreno/vulkan/tu_device.cc
+@@ -2114,6 +2114,13 @@
+    return available_ram;
+ }
+ 
++/* Heap usage across every VkInstance in the process. DXVK's DXGI layer
++ * answers IDXGIAdapter3::QueryVideoMemoryInfo from its own instance, so a
++ * per-physical-device counter shows a D3D12 game none of vkd3d-proton's
++ * allocations. (DroidDeck Drivers: process_heap_usage.py)
++ */
++static uint64_t tu_process_heap_used;
++
+ static inline VkDeviceSize
+ tu_get_budget_memory(struct tu_physical_device *physical_device)
+ {
+@@ -2156,7 +2163,7 @@
+       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+          VkPhysicalDeviceMemoryBudgetPropertiesEXT *memory_budget_props =
+             (VkPhysicalDeviceMemoryBudgetPropertiesEXT *) ext;
+-         memory_budget_props->heapUsage[0] = physical_device->heap.used;
++         memory_budget_props->heapUsage[0] = p_atomic_read(&tu_process_heap_used);
+          memory_budget_props->heapBudget[0] = tu_get_budget_memory(physical_device);
+ 
+          /* The heapBudget and heapUsage values must be zero for array elements
+@@ -3509,6 +3516,7 @@
+       return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                        "Out of heap memory");
+    }
++   p_atomic_add(&tu_process_heap_used, bo->size);
+    return VK_SUCCESS;
+ }
+ 
+@@ -3597,6 +3605,7 @@
+ {
+    if (mem->bo) {
+       p_atomic_add(&device->physical_device->heap.used, -mem->bo->size);
++      p_atomic_add(&tu_process_heap_used, -mem->bo->size);
+       tu_bo_finish(device, mem->bo);
+    }
+ 
