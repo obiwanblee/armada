@@ -1,0 +1,28 @@
+From: Armada FH6 diag <fh6@local>
+Subject: [PATCH] tu: expose a DEVICE_LOCAL-only memory type so D3D12 sees a discrete GPU
+
+vkd3d-proton reports D3D12_FEATURE_ARCHITECTURE.UMA when every non-lazy memory
+type is HOST_VISIBLE, which is true of turnip. Forza Horizon 6 then treats the
+GPU as UMA: shows Video Memory 0 / 0, never reads the DXGI budget, and streams
+until allocation fails (~6 GB pool on a 16 GB device). Add one DEVICE_LOCAL-only
+type at the end of the non-lazy list; BOs are unchanged.
+
+--- a/src/freedreno/vulkan/tu_device.cc	2026-10-29 15:35:41.500056500 -0700
++++ b/src/freedreno/vulkan/tu_device.cc	2026-10-29 15:35:41.551880000 -0700
+@@ -1791,6 +1791,16 @@
+       device->memory.type_count++;
+    }
+ 
++   /* A DEVICE_LOCAL-only type with no HOST_VISIBLE bit. Every tu_bo is still
++    * mappable, so allocation behaviour is unchanged; the type exists so that
++    * vkd3d-proton's d3d12_device_is_uma() (true only when every non-lazy type
++    * is HOST_VISIBLE) reports a discrete architecture. Forza Horizon 6 only
++    * budgets video memory on that path and streams unbounded on UMA.
++    */
++   device->memory.types[device->memory.type_count] =
++      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
++   device->memory.type_count++;
++
+    device->memory.non_lazy_type_count = device->memory.type_count;
+    if (device->has_lazy_bos) {
+       device->memory.types[device->memory.type_count] =
