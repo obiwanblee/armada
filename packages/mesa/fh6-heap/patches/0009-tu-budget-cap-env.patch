@@ -1,0 +1,39 @@
+From: Armada FH6 diag <fh6@local>
+Subject: [PATCH] tu: TU_BUDGET_CAP_MB soft cap on the VK_EXT_memory_budget budget
+
+With the discrete-architecture path (0008) Forza Horizon 6 reads the DXGI
+budget, but turnip derives it from available system RAM, so it only collapses
+after memory is already gone and the streamer still grows to ~6 GB. Cap the
+reported budget from the first query without ever failing allocations.
+
+--- a/src/freedreno/vulkan/tu_device.cc	2026-10-29 15:53:35.740717500 -0700
++++ b/src/freedreno/vulkan/tu_device.cc	2026-10-29 15:53:35.787163800 -0700
+@@ -2143,9 +2143,25 @@
+     */
+    const float percent = 0.9f;
+ 
+-   return vk_physical_device_heap_budget_from_system(&physical_device->vk,
+-                                                     percent, heap_size,
+-                                                     heap_used);
++   VkDeviceSize budget =
++      vk_physical_device_heap_budget_from_system(&physical_device->vk,
++                                                 percent, heap_size,
++                                                 heap_used);
++
++   /* TU_BUDGET_CAP_MB: soft cap on the budget reported through
++    * VK_EXT_memory_budget. Allocation never fails because of it; it only
++    * shapes what a budget-aware streamer (Forza Horizon 6 on its discrete
++    * path) believes it may use, from the first query onwards. Unset = off.
++    */
++   static int64_t budget_cap = -1;
++   if (budget_cap < 0) {
++      const char *cap_str = getenv("TU_BUDGET_CAP_MB");
++      budget_cap = cap_str ? (int64_t) strtoll(cap_str, NULL, 10) * 1024 * 1024 : 0;
++   }
++   if (budget_cap > 0 && budget > (VkDeviceSize) budget_cap)
++      budget = budget_cap;
++
++   return budget;
+ }
+ 
+ VKAPI_ATTR void VKAPI_CALL
