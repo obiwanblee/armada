@@ -100,3 +100,14 @@ Disabled (kept in `variants/winnative/patches/disabled/`, which isn't applied):
   disabled: upstream Mesa uses this as a compatibility switch when a mismatch
   between drivers breaks scaled blits. Since these are system driver builds this
   switch is unnecessary.
+
+### fh6-sparse
+
+Based on devel, plus:
+
+- `variants/fh6-sparse/patches/0001-turnip-a740-single-sample-sparse-rfc.patch`
+  source: https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/44876 (23bd860c)
+  affects: A740
+  notes: rebased onto the devel pin; tu_image_init hunk merged with 0011 by
+  splitting the requires_linear helper (r8g8/r16 + swaps) so TU_Z_MUTABLE keeps
+  its effect. Forza Horizon 6 needs sparse images; not for general use.

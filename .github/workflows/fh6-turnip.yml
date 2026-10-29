@@ -1,0 +1,67 @@
+---
+name: FH6 Turnip variant
+
+# Builds only the mesa package stage (RPMs + every Turnip variant) on the
+# native arm64 runner and uploads the turnip variant directories as an
+# artifact. No registry writes.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mesa:
+    name: mesa (turnip variants)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install container tools
+        run: |
+          set -euxo pipefail
+          need=""
+          for t in buildah skopeo podman; do
+            command -v "$t" >/dev/null || need="$need $t"
+          done
+          command -v runc >/dev/null || need="$need runc"
+          [ -z "$need" ] || { sudo apt-get update && sudo apt-get install -y $need; }
+          mkdir -p ~/.config/containers
+          printf '[engine]\nruntime = "runc"\n' > ~/.config/containers/containers.conf
+
+      - name: Resolve builder image
+        run: |
+          set -euo pipefail
+          source packages/toolchain.env
+          echo "BUILDER_IMAGE=${BUILDER_IMAGE}" >> "${GITHUB_ENV}"
+
+      - name: Build mesa stage
+        run: |
+          set -euxo pipefail
+          buildah build \
+            -f packages/Containerfile \
+            --target out-mesa \
+            --layers \
+            --build-arg "BUILDER_IMAGE=${BUILDER_IMAGE}" \
+            -t localhost/armada/pkg/mesa:fh6 \
+            packages/
+
+      - name: Extract turnip variants
+        run: |
+          set -euxo pipefail
+          c=$(podman create localhost/armada/pkg/mesa:fh6 /nonexistent)
+          mkdir -p out
+          podman cp "$c:/rpms/turnip" out/turnip
+          podman rm "$c"
+          ls -laR out/turnip | head -60
+          cat out/turnip/*/variant.json
+
+      - name: Upload turnip variants
+        uses: actions/upload-artifact@v4
+        with:
+          name: turnip-variants
+          path: out/turnip
+          if-no-files-found: error
