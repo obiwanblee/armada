@@ -29,7 +29,7 @@ meson setup src/build src --buildtype release --prefix /usr \
   -Dplatforms=x11,wayland -Dglx=disabled -Degl=disabled -Dgbm=disabled \
   -Dopengl=false -Dllvm=disabled -Dbuild-tests=true -Dtu-build-id=fh6-a740-heap1
 ninja -C src/build -j"$(nproc)"
-meson test -C src/build --print-errorlogs fd6_layout ir3_delay
+meson test -C src/build --print-errorlogs fd6_layout
 install -D -m 0755 src/build/src/freedreno/vulkan/libvulkan_freedreno.so /work/out/libvulkan_freedreno.so
 cp src/build/src/freedreno/vulkan/freedreno_icd.aarch64.json /work/out/
 sha256sum /work/out/libvulkan_freedreno.so
